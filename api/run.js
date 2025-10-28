@@ -1,48 +1,43 @@
-import fetch from 'node-fetch';
+// api/run.js
+import { Client } from '@notionhq/client';
 
+// Configurações do Notion
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const databaseId = process.env.DATABASE_ID;
+
+// Função handler do Vercel
 export default async function handler(req, res) {
-  const NOTION_TOKEN = process.env.NOTION_TOKEN;
-  const DATABASE_ID = process.env.DATABASE_ID;
+  try {
+    // Chamada para a API da Mega-Sena
+    const response = await fetch('https://brainn-api-loterias.herokuapp.com/api/v1/mega-sena/latest');
+    const data = await response.json();
 
-  // 1️⃣ Pegar resultado da Mega-Sena
-  const megaRes = await fetch("https://loteriascaixa-api.herokuapp.com/api/megasena/latest");
-  const data = await megaRes.json();
+    // Preparar dados para enviar ao Notion
+    const concurso = data.concurso;
+    const dataSorteio = data.data; // já no formato YYYY-MM-DD
+    const dezenas = data.dezenas.join(', ');
+    const acumulou = data.acumulou;
+    const premiacoes = data.premiacoes
+      .map(p => `${p.descricao}: ${p.ganhadores} ganhador(es), R$ ${p.valorPremio.toLocaleString('pt-BR')}`)
+      .join('; ');
 
-  const concurso = data.concurso;
-  const dataSorteio = data.data; // "25/10/2025"
-  const dezenas = data.dezenas.join(", ");
-  const acumulou = data.acumulou;
-  const premiacao = data.premiacoes.length > 0 ? data.premiacoes[0].descricao : "Sem dados";
+    // Criar página no Notion
+    await notion.pages.create({
+      parent: { database_id: databaseId },
+      properties: {
+        Concurso: { number: concurso },
+        Data: { date: { start: dataSorteio } },
+        Dezenas: { rich_text: [{ text: { content: dezenas } }] },
+        Acumulou: { checkbox: acumulou },
+        Premiação: { rich_text: [{ text: { content: premiacoes } }] },
+      },
+    });
 
-  // 2️⃣ Enviar para o Notion
-  const notionUrl = "https://api.notion.com/v1/pages";
-  const payload = {
-    parent: { database_id: DATABASE_ID },
-    properties: {
-      Concurso: { number: concurso },
-      Data: { date: { start: dataSorteio.split("/").reverse().join("-") } },
-      Dezenas: { rich_text: [{ text: { content: dezenas } }] },
-      Acumulou: { checkbox: acumulou },
-      Premiação: { rich_text: [{ text: { content: premiacao } }] }
-    }
-  };
+    // Retorno de sucesso
+    res.status(200).json({ success: true, message: `Resultado do concurso ${concurso} adicionado ao Notion!` });
 
-  const notionRes = await fetch(notionUrl, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${NOTION_TOKEN}`,
-      "Notion-Version": "2022-06-28",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (notionRes.ok) {
-    res.status(200).send(`✅ Resultado do concurso ${concurso} adicionado ao Notion!`);
-  } else {
-    const text = await notionRes.text();
-    res.status(500).send(`❌ Erro ao enviar para Notion: ${text}`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 }
-
-
