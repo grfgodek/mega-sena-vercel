@@ -6,6 +6,6 @@
     "start": "vercel dev"
   },
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "@notionhq/client": "^3.10.0"
   }
 }
