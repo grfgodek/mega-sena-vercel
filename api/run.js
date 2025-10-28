@@ -1,4 +1,8 @@
-import fetch from "node-fetch";
+// Antes (CommonJS)
+const fetch = require('node-fetch');
+
+// Depois (ESM)
+import fetch from 'node-fetch';
 
 export default async function handler(req, res) {
   const NOTION_TOKEN = process.env.NOTION_TOKEN;
@@ -44,3 +48,4 @@ export default async function handler(req, res) {
     res.status(500).send(`❌ Erro ao enviar para Notion: ${text}`);
   }
 }
+
